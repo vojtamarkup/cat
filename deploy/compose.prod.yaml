@@ -1,0 +1,39 @@
+# Produkční Compose: používá hotové image z registry, nic se nestaví
+name: cat
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped              # po restartu serveru se samo spustí
+    environment:
+      POSTGRES_USER: cat
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}   # heslo ze souboru .env na serveru
+      POSTGRES_DB: cat
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cat"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    # žádné "ports": databáze není zvenku dostupná
+
+  backend:
+    image: ghcr.io/vojtamarkup/cat-backend:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://cat:${POSTGRES_PASSWORD}@db:5432/cat
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: ghcr.io/vojtamarkup/cat-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"                          # web na standardním portu 80
+    depends_on:
+      - backend
+
+volumes:
+  db-data:
