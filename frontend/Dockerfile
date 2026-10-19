@@ -1,5 +1,5 @@
 # ---- Fáze 1: postav frontend ----
-FROM node:24-alpine AS build
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 WORKDIR /app
 
 # Závislosti (bez dev knihoven jako jest)
