@@ -73,3 +73,36 @@ jobs:
       # Spusť testy proti databázi cat_test ze "services"
       - name: Tests
         run: uv run pytest -v
+    # Druhý job: frontend. Běží souběžně s backendem.
+    frontend:
+      runs-on: ubuntu-latest
+
+      defaults:
+        run:
+          working-directory: frontend
+
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v5
+
+        # Nainstaluj Node.js (obdoba setup-uv)
+        - name: Install Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: 24
+            cache: npm                                       # zrychlí instalaci při dalších bězích
+            cache-dependency-path: frontend/package-lock.json
+
+        # Nainstaluj knihovny přesně podle package-lock.json (obdoba uv sync --locked)
+        - name: Install dependencies
+          run: npm ci
+
+        - name: Lint
+          run: npm run lint
+
+        - name: Tests
+          run: npm test
+
+        # Ověř, že jde frontend postavit (stejně jako v Dockerfile)
+        - name: Build
+          run: npm run build
