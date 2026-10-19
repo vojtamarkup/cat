@@ -1,0 +1,39 @@
+name: kocicky
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: cat
+      POSTGRES_PASSWORD: cat
+      POSTGRES_DB: cat
+    ports:
+      - "5433:5432"                 # jen pro DBeaver a testy z tvého PC
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:                    # kontrola, že databáze už přijímá spojení
+      test: ["CMD-SHELL", "pg_isready -U cat"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      # "db" = jméno služby výš, uvnitř Docker sítě port 5432
+      DATABASE_URL: postgresql+psycopg://cat:cat@db:5432/cat
+    depends_on:
+      db:
+        condition: service_healthy  # počkej, až bude databáze připravená
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"                   # web bude na localhost:8080
+    depends_on:
+      - backend
+
+volumes:
+  db-data:
