@@ -1,0 +1,75 @@
+# Jméno workflow, uvidíš ho v záložce Actions na GitHubu
+name: CI
+
+# KDY se má workflow spustit
+on:
+  # Při každém pushi do větve main
+  push:
+    branches: [main]
+  # A u každého pull requestu (žádosti o sloučení změn)
+  pull_request:
+
+# CO se má udělat. Workflow se skládá z jobů (úloh).
+jobs:
+  # Jméno jobu. Později přibude "frontend".
+  backend:
+    # Na jakém systému job běží. GitHub půjčí čistý virtuální Linux,
+    # po skončení ho smaže. Každé spuštění začíná načisto.
+    runs-on: ubuntu-latest
+
+    # Výchozí nastavení pro všechny příkazy "run" níže
+    defaults:
+      run:
+        # Každý příkaz se spustí ve složce backend (jako "cd backend")
+        working-directory: backend
+
+    # Pomocné kontejnery, které poběží vedle jobu po celou dobu.
+    # Stejné jako služba "db" v compose.yaml.
+    services:
+      # Jméno služby (může být jakékoliv)
+      postgres:
+        # Stejný image jako lokálně
+        image: postgres:17
+        # Proměnné prostředí pro kontejner: vytvoří uživatele a rovnou databázi cat_test
+        env:
+          POSTGRES_USER: cat
+          POSTGRES_PASSWORD: cat
+          POSTGRES_DB: cat_test
+        # Port runneru : port v kontejneru.
+        # 5433 jako lokálně, takže výchozí adresa v conftest.py sedí beze změny.
+        ports:
+          - 5433:5432
+        # Healthcheck: GitHub počká, dokud databáze nepřijímá spojení,
+        # a teprve pak spustí kroky níže (jako healthcheck v compose.yaml)
+        options: >-
+          --health-cmd "pg_isready -U cat"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    # Kroky jobu, provádí se postupně shora dolů.
+    # Když jeden selže, další se nespustí a celé CI je červené ❌.
+    steps:
+      # Stáhni kód z repa do runneru (jinak by tam nic nebylo)
+      - name: Checkout
+        uses: actions/checkout@v5           # "uses" = hotová akce od někoho jiného
+
+      # Nainstaluj uv
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      # Nainstaluj knihovny podle uv.lock (i dev knihovny: pytest, ruff, respx)
+      - name: Install dependencies
+        run: uv sync --locked               # "run" = obyčejný příkaz v terminálu
+
+      # Kontrola chyb v kódu (nepoužité importy apod.)
+      - name: Lint
+        run: uv run ruff check .
+
+      # Kontrola, že je kód zformátovaný. Nic nepřepisuje, jen spadne, když není.
+      - name: Format check
+        run: uv run ruff format --check .
+
+      # Spusť testy proti databázi cat_test ze "services"
+      - name: Tests
+        run: uv run pytest -v
