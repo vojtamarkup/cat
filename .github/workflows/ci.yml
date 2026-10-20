@@ -216,7 +216,7 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
-  # ===== Job 5: Nasazení na Oracle server =====
+  # ===== Job 5: Nasazení do Kubernetes (k3s) na Oracle serveru =====
   deploy:
     runs-on: ubuntu-latest
     needs: docker                    # až jsou nové image v GHCR
@@ -225,7 +225,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-      # Potřebujeme deploy/compose.prod.yaml z repa
+      # Potřebujeme složku k8s z repa
       - name: Checkout
         uses: actions/checkout@v5
 
@@ -237,12 +237,12 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-      # Zkopíruj aktuální compose na server (kdyby se změnil)
-      - name: Copy compose file
-        run: scp -i ~/.ssh/deploy_key deploy/compose.prod.yaml ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/cat/compose.yaml
+      # Zkopíruj Kubernetes soubory na server do ~/cat/k8s
+      - name: Copy manifests
+        run: scp -i ~/.ssh/deploy_key -r k8s ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/cat/
 
-      # Na serveru stáhni nové image a restartuj, co se změnilo
+      # Předej soubory Kubernetesu a restartuj aplikaci s novými image
       - name: Deploy
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "cd ~/cat && docker compose pull && docker compose up -d && docker image prune -f"
+            "kubectl apply -f ~/cat/k8s/ && kubectl -n cat rollout restart deployment backend frontend && kubectl -n cat rollout status deployment backend frontend --timeout=180s"
