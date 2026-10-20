@@ -227,7 +227,7 @@ jobs:
     # Jen pro přehled v GitHubu (Settings → Environments), nic neblokuje
     environment:
       name: staging
-      url: http://staging.129-159-0-71.sslip.io
+      url: https://staging.129-159-0-71.sslip.io
 
     steps:
       - name: Checkout
@@ -265,7 +265,7 @@ jobs:
     # nastavené Required reviewers, takže čeká na tlačítko Approve.
     environment:
       name: production
-      url: http://129.159.0.71
+      url: https://129-159-0-71.sslip.io
 
     steps:
       - name: Checkout

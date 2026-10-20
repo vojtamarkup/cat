@@ -1,5 +1,6 @@
-# PRODUKCE: základ beze změn, jen v namespace "cat".
-# Ingress nemá doménu, takže aplikace dál běží na http://129.159.0.71
+# PRODUKCE: základ v namespace "cat" + vchod přes HTTPS.
+# http://129.159.0.71            → původní Ingress "cat" (beze změny)
+# https://129-159-0-71.sslip.io  → nový Ingress "cat-https" s certifikátem
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -7,4 +8,5 @@ namespace: cat                 # všechno ze základu dej do namespace cat
 
 resources:
   - ../../base                 # vezmi základ
-  - namespace.yaml             # a vytvoř namespace
+  - namespace.yaml             # vytvoř namespace
+  - ingress-https.yaml         # a přidej HTTPS vchod

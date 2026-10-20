@@ -1,0 +1,24 @@
+# DRUHÝ VCHOD do produkce: přes doménu a HTTPS.
+# Původní Ingress "cat" (bez domény) zůstává, takže http://129.159.0.71 funguje dál.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cat-https
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod   # certifikát vyřídí cert-manager
+spec:
+  tls:
+    - hosts:
+        - 129-159-0-71.sslip.io
+      secretName: cat-tls          # sem cert-manager uloží certifikát
+  rules:
+    - host: 129-159-0-71.sslip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

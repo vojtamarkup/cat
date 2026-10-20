@@ -1,4 +1,4 @@
-# STAGING: stejný základ, ale vlastní namespace, doména a méně podů.
+# STAGING: stejný základ, ale vlastní namespace, doména, HTTPS a méně podů.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -9,14 +9,27 @@ resources:
   - namespace.yaml
 
 patches:
-  # Ingress: staging poslouchá jen na své doméně (jinak by se tloukl s produkcí)
+  # Ingress: staging poslouchá jen na své doméně a má HTTPS
   - target:
       kind: Ingress
       name: cat
     patch: |-
+      # cert-manager: certifikát pro tenhle Ingress vyřiď přes Let's Encrypt
+      - op: add
+        path: /metadata/annotations
+        value:
+          cert-manager.io/cluster-issuer: letsencrypt-prod
+      # doména
       - op: add
         path: /spec/rules/0/host
         value: staging.129-159-0-71.sslip.io
+      # HTTPS: pro tuhle doménu chci certifikát, cert-manager ho uloží do Secretu cat-tls
+      - op: add
+        path: /spec/tls
+        value:
+          - hosts:
+              - staging.129-159-0-71.sslip.io
+            secretName: cat-tls
 
   # Frontend: na stagingu stačí jeden pod
   - target:
