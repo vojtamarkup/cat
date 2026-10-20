@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cat
+  namespace: cat
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /                        # všechny adresy
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend             # pošli na Service frontend
+                port:
+                  number: 80

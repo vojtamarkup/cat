@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: cat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/vojtamarkup/cat-backend:latest
+          imagePullPolicy: Always          # při každém startu zkontroluj, jestli v GHCR není novější verze
+          env:
+            - name: POSTGRES_PASSWORD      # heslo ze Secretu
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL           # $(POSTGRES_PASSWORD) Kubernetes nahradí heslem z řádku výš
+              value: postgresql+psycopg://cat:$(POSTGRES_PASSWORD)@db:5432/cat
+          ports:
+            - containerPort: 8000
+          readinessProbe:                  # pošli sem provoz, až /health odpovídá
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 5
+          livenessProbe:                   # když /health přestane odpovídat, restartuj pod
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20        # po startu počkej 20 s, než začneš kontrolovat
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend                            # jméno sedí s proxy_pass http://backend:8000 v nginx.conf
+  namespace: cat
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 8000
