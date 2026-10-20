@@ -217,15 +217,19 @@ jobs:
           cache-to: type=gha,mode=max,scope=frontend
 
   # ===== Job 5: Nasazení do Kubernetes (k3s) na Oracle serveru =====
-  deploy:
+  # ===== Job 5: nasazení na STAGING =====
+  # Běží automaticky po každém pushi do main, hned po buildu image.
+  deploy-staging:
     runs-on: ubuntu-latest
     needs: docker                    # až jsou nové image v GHCR
-
-    # Jen při pushi do main
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
+    # Jen pro přehled v GitHubu (Settings → Environments), nic neblokuje
+    environment:
+      name: staging
+      url: http://staging.129-159-0-71.sslip.io
+
     steps:
-      # Potřebujeme složku k8s z repa
       - name: Checkout
         uses: actions/checkout@v5
 
@@ -237,12 +241,49 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-      # Zkopíruj Kubernetes soubory na server do ~/cat/k8s
+      # Smaž starou složku k8s na serveru (ať tam nezůstanou staré soubory) a nahraj novou
       - name: Copy manifests
-        run: scp -i ~/.ssh/deploy_key -r k8s ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/cat/
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "rm -rf ~/cat/k8s && mkdir -p ~/cat"
+          scp -i ~/.ssh/deploy_key -r k8s ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/cat/
 
-      # Předej soubory Kubernetesu a restartuj aplikaci s novými image
+      # -k = Kustomize: poskládej základ + overlay staging a pošli do clusteru
+      # rollout status čeká, až nové pody opravdu běží. Když ne, job spadne
+      # a produkce se vůbec nespustí.
       - name: Deploy
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "kubectl apply -f ~/cat/k8s/ && kubectl -n cat rollout restart deployment backend frontend && kubectl -n cat rollout status deployment backend frontend --timeout=180s"
+            "kubectl apply -k ~/cat/k8s/overlays/staging && kubectl -n cat-staging rollout restart deployment backend frontend && kubectl -n cat-staging rollout status deployment backend frontend --timeout=180s"
+
+  # ===== Job 6: nasazení do PRODUKCE =====
+  # Čeká na úspěšný staging A na tvoje schválení v záložce Actions.
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: deploy-staging            # nikdy dřív než úspěšný staging
+
+    # TADY se pipeline zastaví: prostředí "production" má v GitHubu
+    # nastavené Required reviewers, takže čeká na tlačítko Approve.
+    environment:
+      name: production
+      url: http://129.159.0.71
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Copy manifests
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "rm -rf ~/cat/k8s && mkdir -p ~/cat"
+          scp -i ~/.ssh/deploy_key -r k8s ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/cat/
+
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "kubectl apply -k ~/cat/k8s/overlays/production && kubectl -n cat rollout restart deployment backend frontend && kubectl -n cat rollout status deployment backend frontend --timeout=180s"

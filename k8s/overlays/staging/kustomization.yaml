@@ -1,0 +1,28 @@
+# STAGING: stejný základ, ale vlastní namespace, doména a méně podů.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cat-staging         # všechno ze základu dej do namespace cat-staging
+
+resources:
+  - ../../base
+  - namespace.yaml
+
+patches:
+  # Ingress: staging poslouchá jen na své doméně (jinak by se tloukl s produkcí)
+  - target:
+      kind: Ingress
+      name: cat
+    patch: |-
+      - op: add
+        path: /spec/rules/0/host
+        value: staging.129-159-0-71.sslip.io
+
+  # Frontend: na stagingu stačí jeden pod
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1

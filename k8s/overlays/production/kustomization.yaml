@@ -1,0 +1,10 @@
+# PRODUKCE: základ beze změn, jen v namespace "cat".
+# Ingress nemá doménu, takže aplikace dál běží na http://129.159.0.71
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cat                 # všechno ze základu dej do namespace cat
+
+resources:
+  - ../../base                 # vezmi základ
+  - namespace.yaml             # a vytvoř namespace
